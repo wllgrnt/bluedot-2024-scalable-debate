@@ -1,2 +1,3 @@
-# bluedot-2024-scalable-debate
-Looking at the efficacy of automated debate as a function of Elo gap in LLMs.
+# LLM vs LLM Debate Toolkit
+
+Framework for running multi-turn debate between LLMs

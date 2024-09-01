@@ -1,0 +1,53 @@
+site_name: LLM vs LLM Debate Toolkit
+theme:
+  name: material
+  language: en
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Usage: usage.md
+  - API Reference: api.md
+
+watch:
+  - src
+
+plugins:
+  - search
+  - include-markdown:
+      opening_tag: "{!"
+      closing_tag: "!}"
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: ["src"]
+          options:
+            docstring_style: google
+            show_submodules: true
+
+
+markdown_extensions:
+  - toc:
+      permalink: true
+  - tables
+  - admonition
+  - codehilite
+  - footnotes
+  - meta
+  - def_list
+  - attr_list
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.critic
+  - pymdownx.keys
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets
+  - pymdownx.betterem
+  - pymdownx.tasklist
+  - pymdownx.tilde
+  - pymdownx.caret
+  - pymdownx.highlight
+  - pymdownx.tabbed
