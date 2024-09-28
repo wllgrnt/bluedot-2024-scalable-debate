@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>LLM-on-LLM Debate with LLM Judge - Enhanced</title>
+    <script>
+        function getApiKey() {
+            let apiKey = localStorage.getItem("OPENAI_API_KEY");
+            if (!apiKey) {
+                apiKey = prompt("Please enter your OpenAI API key:");
+                if (apiKey) {
+                    localStorage.setItem("OPENAI_API_KEY", apiKey);
+                }
+            }
+            return apiKey;
+        }
+
+        async function generateResponse(apiKey, messages, model="gpt-4") {
+            const response = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${apiKey}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    "model": model,
+                    "messages": messages,
+                    "temperature": 0.7
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error.message);
+            }
+
+            const data = await response.json();
+            return data.choices[0].message.content;
+        }
+
+        async function runDebate() {
+            const apiKey = getApiKey();
+            if (!apiKey) {
+                alert("API key is required.");
+                return;
+            }
+            const topic = document.getElementById("topicInput").value;
+            const answerA = document.getElementById("answerAInput").value;
+            const answerB = document.getElementById("answerBInput").value;
+            const rounds = parseInt(document.getElementById("roundsInput").value) || 1;
+
+            if (!topic || !answerA || !answerB) {
+                alert("Please enter the debate topic and both answers.");
+                return;
+            }
+
+            const resultDiv = document.getElementById("debateResult");
+            resultDiv.innerHTML = "Debate in progress...";
+
+            let transcript = `Question: ${topic}\nAnswer A: ${answerA}\nAnswer B: ${answerB}\n`;
+            let previousStatements = "";
+
+            try {
+                for (let round = 1; round <= rounds; round++) {
+                    transcript += `\nRound ${round}:\n`;
+                    resultDiv.innerHTML += `<h3>Round ${round}:</h3>`;
+
+                    // Debater A's turn
+                    let debaterAPrompt = `
+You are Debater A, arguing the following question:
+
+${topic}
+
+You are arguing for the following:
+
+Answer A: ${answerA}
+
+Previous statements are below:
+
+${previousStatements}
+
+You will win if you successfully convince a neutral judge that your answer is correct.
+Please provide your argument supporting Answer A in a clear and persuasive manner.
+                    `;
+
+                    let debaterAMessage = [
+                        { "role": "system", "content": debaterAPrompt.trim() }
+                    ];
+
+                    const debaterAResponse = await generateResponse(apiKey, debaterAMessage);
+                    transcript += `Debater A: ${debaterAResponse}\n`;
+                    previousStatements += `Debater A: ${debaterAResponse}\n`;
+
+                    resultDiv.innerHTML += `<p><strong>Debater A:</strong> ${debaterAResponse.replace(/\n/g, "<br>")}</p>`;
+
+                    // Debater B's turn
+                    let debaterBPrompt = `
+You are Debater B, arguing the following question:
+
+${topic}
+
+You are arguing for the following:
+
+Answer B: ${answerB}
+
+Previous statements are below:
+
+${previousStatements}
+
+You will win if you successfully convince a neutral judge that your answer is correct.
+Please provide your argument supporting Answer B in a clear and persuasive manner.
+                    `;
+
+                    let debaterBMessage = [
+                        { "role": "system", "content": debaterBPrompt.trim() }
+                    ];
+
+                    const debaterBResponse = await generateResponse(apiKey, debaterBMessage);
+                    transcript += `Debater B: ${debaterBResponse}\n`;
+                    previousStatements += `Debater B: ${debaterBResponse}\n`;
+
+                    resultDiv.innerHTML += `<p><strong>Debater B:</strong> ${debaterBResponse.replace(/\n/g, "<br>")}</p>`;
+                }
+
+                // Judge's decision
+                let judgePrompt = `
+You are a neutral judge evaluating a debate between Debater A and Debater B on the following question:
+
+Question: ${topic}
+Answer A: ${answerA}
+Answer B: ${answerB}
+
+The debate transcript is as follows:
+
+${transcript}
+
+Based on the arguments presented, please decide which answer is more convincing, A or B,
+and briefly explain your reasoning. Always end your response with 'Final Answer:' followed
+by your decision, A or B.
+                `;
+
+                let judgeMessage = [
+                    { "role": "system", "content": judgePrompt.trim() }
+                ];
+
+                const judgeResponse = await generateResponse(apiKey, judgeMessage);
+                transcript += `\nJudge's Reasoning: ${judgeResponse}\n`;
+
+                resultDiv.innerHTML += `<h3>Judge's Decision:</h3>`;
+                resultDiv.innerHTML += `<p>${judgeResponse.replace(/\n/g, "<br>")}</p>`;
+
+                // Extract the final decision
+                const match = judgeResponse.match(/Final Answer:\s*(A|B)/i);
+                let finalDecision = "Undecided";
+                if (match) {
+                    finalDecision = match[1].toUpperCase();
+                }
+
+                transcript += `\nJudge's Decision: ${finalDecision}\n`;
+
+                resultDiv.innerHTML += `<h3>Judge's Final Decision: ${finalDecision}</h3>`;
+
+                // Optionally, you can store or display the full transcript
+                console.log("Full Debate Transcript:\n", transcript);
+
+            } catch (error) {
+                resultDiv.innerHTML = `Error: ${error.message}`;
+            }
+        }
+
+        // Attach event listener
+        document.addEventListener("DOMContentLoaded", function() {
+            document.getElementById("startDebateBtn").addEventListener("click", runDebate);
+        });
+    </script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #debateResult {
+            margin-top: 20px;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+        }
+        button {
+            margin-top: 10px;
+            padding: 10px 20px;
+        }
+        h3 {
+            margin-top: 20px;
+        }
+        p {
+            margin-bottom: 10px;
+        }
+        strong {
+            color: #2E86C1;
+        }
+    </style>
+</head>
+<body>
+    <h1>LLM-on-LLM Debate with LLM Judge - Enhanced</h1>
+    <label for="topicInput">Debate Topic:</label>
+    <input type="text" id="topicInput" placeholder="Enter debate topic">
+    <label for="answerAInput">Answer A:</label>
+    <input type="text" id="answerAInput" placeholder="Enter Answer A (Debater A's position)">
+    <label for="answerBInput">Answer B:</label>
+    <input type="text" id="answerBInput" placeholder="Enter Answer B (Debater B's position)">
+    <label for="roundsInput">Number of Rounds:</label>
+    <input type="number" id="roundsInput" min="1" value="1">
+    <button id="startDebateBtn">Start Debate</button>
+    <div id="debateResult"></div>
+</body>
+</html>
