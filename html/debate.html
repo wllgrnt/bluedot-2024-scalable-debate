@@ -41,54 +41,59 @@
             } else if (model.startsWith("claude-")) {
                 // Anthropic Claude models
                 apiKey = getApiKey("Anthropic");
-                apiUrl = "https://api.anthropic.com/v1/complete";
+                apiUrl = "https://api.anthropic.com/v1/messages";
                 headers = {
                     "x-api-key": apiKey,
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    "anthropic-version": "2023-06-01",
+                    "anthropic-dangerous-direct-browser-access": true
                 };
                 body = JSON.stringify({
                     "model": model,
-                    "prompt": messages.map(m => m.content).join("\n"),
-                    "max_tokens_to_sample": 1000,
+                    "messages": messages,
                     "temperature": 0.7,
-                    "stop_sequences": ["\n\nHuman:"]
+                    "max_tokens": 1000
                 });
             } else if (model.startsWith("gemini-")) {
                 // Google's Gemini models
                 apiKey = getApiKey("Gemini");
-                apiUrl = `https://generativelanguage.googleapis.com/v1beta2/models/${model}:generateMessage?key=${apiKey}`;
+                apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
                 headers = {
                     "Content-Type": "application/json"
                 };
                 body = JSON.stringify({
-                    "prompt": {
-                        "messages": messages
-                    },
-                    "temperature": 0.7
+                    "contents": [{
+                        "parts": messages.map(m => ({ "text": m.content }))
+                    }]
                 });
             } else {
                 throw new Error("Unsupported model selected.");
             }
 
-            const response = await fetch(apiUrl, {
-                method: "POST",
-                headers: headers,
-                body: body
-            });
+            try {
+                const response = await fetch(apiUrl, {
+                    method: "POST",
+                    headers: headers,
+                    body: body
+                });
 
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error.message || error.message || "Unknown error occurred.");
-            }
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error.message || error.message || "Unknown error occurred.");
+                }
 
-            const data = await response.json();
+                const data = await response.json();
+                // console.log("Anthropic API Response:", data); // Add this line
 
-            if (model.startsWith("gpt-")) {
-                return data.choices[0].message.content;
-            } else if (model.startsWith("claude-")) {
-                return data.completion;
-            } else if (model.startsWith("gemini-")) {
-                return data.candidates[0].content;
+                if (model.startsWith("gpt-")) {
+                    return data.choices[0].message.content;
+                } else if (model.startsWith("claude-")) {
+                    return data.content.map(item => item.text).join(" ");
+                } else if (model.startsWith("gemini-")) {
+                    return data.contents[0].parts.map(part => part.text).join("");
+                }
+            } catch (error) {
+                throw error;
             }
         }
 
@@ -136,7 +141,7 @@ Please provide your argument supporting Answer A in a clear and persuasive manne
                     `;
 
                     let debaterAMessage = [
-                        { "role": "system", "content": debaterAPrompt.trim() }
+                        { "role": "user", "content": debaterAPrompt.trim() }
                     ];
 
                     const debaterAResponse = await generateResponse(modelA, debaterAMessage);
@@ -164,7 +169,7 @@ Please provide your argument supporting Answer B in a clear and persuasive manne
                     `;
 
                     let debaterBMessage = [
-                        { "role": "system", "content": debaterBPrompt.trim() }
+                        { "role": "user", "content": debaterBPrompt.trim() }
                     ];
 
                     const debaterBResponse = await generateResponse(modelB, debaterBMessage);
@@ -192,7 +197,7 @@ by your decision, A or B.
                 `;
 
                 let judgeMessage = [
-                    { "role": "system", "content": judgePrompt.trim() }
+                    { "role": "user", "content": judgePrompt.trim() }
                 ];
 
                 const judgeResponse = await generateResponse(judgeModel, judgeMessage);
@@ -217,6 +222,7 @@ by your decision, A or B.
 
             } catch (error) {
                 resultDiv.innerHTML = `Error: ${error.message}`;
+                return; // Prevent further execution after an error
             }
         }
 
@@ -357,11 +363,18 @@ by your decision, A or B.
                 <input type="text" id="answerAInput" placeholder="Enter Answer A (Debater A's position)" value="Yes, stricter regulations are necessary to prevent misuse.">
                 <label for="modelASelect">Model A:</label>
                 <select id="modelASelect" class="model-select">
-                    <option value="gpt-4">OpenAI GPT-4</option>
+                    <!-- OpenAI Models -->
+                    <option value="gpt-4o">OpenAI GPT-4o</option>
+                    <option value="gpt-4o-mini">OpenAI GPT-4o-mini</option>
                     <option value="gpt-3.5-turbo">OpenAI GPT-3.5 Turbo</option>
-                    <option value="claude-instant-1">Anthropic Claude Instant</option>
-                    <option value="claude-2">Anthropic Claude 2</option>
-                    <option value="gemini-1">Google Gemini 1</option>
+                    <!-- Anthropic Models -->
+                    <option value="claude-instant-1.2">Anthropic Claude Instant 1.2</option>
+                    <option value="claude-2.1">Anthropic Claude 2.1</option>
+                    <option value="claude-3-5-sonnet-20240620">Anthropic Claude 3.5 Sonnet 2024-06-20</option>
+                    <option value="claude-3-haiku-20240307">Anthropic Claude 3 Haiku 2024-03-07</option>
+                    <!-- Gemini Models -->
+                    <option value="gemini-1.5-flash">Google Gemini 1.5 Flash</option>
+                    <option value="gemini-1.5-pro">Google Gemini 1.5 Pro</option>
                 </select>
             </div>
             <div class="section">
@@ -369,21 +382,35 @@ by your decision, A or B.
                 <input type="text" id="answerBInput" placeholder="Enter Answer B (Debater B's position)" value="No, overregulation could hinder innovation.">
                 <label for="modelBSelect">Model B:</label>
                 <select id="modelBSelect" class="model-select">
-                    <option value="gpt-4">OpenAI GPT-4</option>
+                    <!-- OpenAI Models -->
+                    <option value="gpt-4o">OpenAI GPT-4o</option>
+                    <option value="gpt-4o-mini">OpenAI GPT-4o-mini</option>
                     <option value="gpt-3.5-turbo">OpenAI GPT-3.5 Turbo</option>
-                    <option value="claude-instant-1">Anthropic Claude Instant</option>
-                    <option value="claude-2">Anthropic Claude 2</option>
-                    <option value="gemini-1">Google Gemini 1</option>
+                    <!-- Anthropic Models -->
+                    <option value="claude-instant-1.2">Anthropic Claude Instant 1.2</option>
+                    <option value="claude-2.1">Anthropic Claude 2.1</option>
+                    <option value="claude-3-5-sonnet-20240620">Anthropic Claude 3.5 Sonnet 2024-06-20</option>
+                    <option value="claude-3-haiku-20240307">Anthropic Claude 3 Haiku 2024-03-07</option>
+                    <!-- Gemini Models -->
+                    <option value="gemini-1.5-flash">Google Gemini 1.5 Flash</option>
+                    <option value="gemini-1.5-pro">Google Gemini 1.5 Pro</option>
                 </select>
             </div>
             <div class="section">
                 <label for="judgeModelSelect">Judge Model:</label>
                 <select id="judgeModelSelect" class="model-select">
-                    <option value="gpt-4">OpenAI GPT-4</option>
+                    <!-- OpenAI Models -->
+                    <option value="gpt-4o">OpenAI GPT-4o</option>
+                    <option value="gpt-4o-mini">OpenAI GPT-4o-mini</option>
                     <option value="gpt-3.5-turbo">OpenAI GPT-3.5 Turbo</option>
-                    <option value="claude-instant-1">Anthropic Claude Instant</option>
-                    <option value="claude-2">Anthropic Claude 2</option>
-                    <option value="gemini-1">Google Gemini 1</option>
+                    <!-- Anthropic Models -->
+                    <option value="claude-instant-1.2">Anthropic Claude Instant 1.2</option>
+                    <option value="claude-2.1">Anthropic Claude 2.1</option>
+                    <option value="claude-3-5-sonnet-20240620">Anthropic Claude 3.5 Sonnet 2024-06-20</option>
+                    <option value="claude-3-haiku-20240307">Anthropic Claude 3 Haiku 2024-03-07</option>
+                    <!-- Gemini Models -->
+                    <option value="gemini-1.5-flash">Google Gemini 1.5 Flash</option>
+                    <option value="gemini-1.5-pro">Google Gemini 1.5 Pro</option>
                 </select>
             </div>
             <div class="section">
