@@ -83,14 +83,14 @@
                 }
 
                 const data = await response.json();
-                // console.log("Anthropic API Response:", data); // Add this line
+                console.log("Gemini Response:", data); // Add this line
 
                 if (model.startsWith("gpt-")) {
                     return data.choices[0].message.content;
                 } else if (model.startsWith("claude-")) {
                     return data.content.map(item => item.text).join(" ");
                 } else if (model.startsWith("gemini-")) {
-                    return data.contents[0].parts.map(part => part.text).join("");
+                    return data.candidates[0].content.parts[0].text;
                 }
             } catch (error) {
                 throw error;
